@@ -1218,6 +1218,8 @@ var editorOpen = false;
 var audioCtx = null;
 var sampleCache = {};
 var sampleLoading = {};
+var sampleStatus = "idle";
+var preloadPromise = null;
 var playTimers = [];
 var pianoSamples = [
   { note: "A2", midi: 45, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A2.mp3" },
@@ -1269,14 +1271,14 @@ function practiceTemplate() {
       '</section>' +
       '<section class="panel compact-panel">' +
         '<div class="section-head"><h2 class="voice-title">练声曲编辑</h2><button class="text-action" data-action="open-editor">编辑旋律</button></div>' +
-        '<div class="preview-row"><span>真实干声三角钢琴采样 · 预备和弦自动加入</span><strong>' + summary + '</strong></div>' +
+        '<div class="preview-row"><span>' + sampleStatusText() + ' · 预备和弦自动加入</span><strong>' + summary + '</strong></div>' +
       '</section>' +
       '<section class="panel settings-panel">' +
         '<div class="segmented" aria-label="拍号">' + meterButtonsTemplate() + '</div>' +
         '<div class="rest-note">每轮自动加入：前置1小节I级大三和弦，结束2拍I级和弦，之后2小节休止换气。当前为开放钢琴采样；若需严格Kawai SK-EX，可替换授权采样。</div>' +
       '</section>' +
       '<div class="play-controls">' +
-        '<button class="primary-action" data-action="toggle-play">' + (isPlaying ? "停止练声" : "开始练声") + '</button>' +
+        '<button class="primary-action" data-action="toggle-play">' + playButtonLabel() + '</button>' +
         '<button class="secondary-action" data-action="open-editor">编辑</button>' +
       '</div>' +
       pianoTemplate() +
@@ -1500,7 +1502,16 @@ function onPianoNote(event) {
   event.preventDefault();
   startNote = event.currentTarget.getAttribute("data-note");
   stopPlayback();
-  playPianoNote(noteToMidi(startNote), 0.45, 0);
+  ensureAudio();
+  if (hasLoadedSamples()) {
+    playPianoNote(noteToMidi(startNote), 0.45, 0);
+  } else {
+    sampleStatus = "loading";
+    preloadPianoSamples().then(function () {
+      if (sampleStatus === "ready") playPianoNote(noteToMidi(startNote), 0.45, 0);
+      render();
+    });
+  }
   saveState();
   render();
 }
@@ -1516,6 +1527,7 @@ function trimDraftToGrid() {
 }
 
 function togglePractice() {
+  if (sampleStatus === "loading") return;
   if (isPlaying) {
     stopPlayback();
     render();
@@ -1528,6 +1540,15 @@ function startPractice() {
   var melody = selectedMelody();
   if (!melody.events.length) return;
   ensureAudio();
+  if (!hasLoadedSamples()) {
+    sampleStatus = "loading";
+    render();
+    preloadPianoSamples().then(function () {
+      if (sampleStatus === "ready") startPractice();
+      else render();
+    });
+    return;
+  }
   clearTimers();
   isPlaying = true;
   var baseMidi = noteToMidi(startNote);
@@ -1804,24 +1825,36 @@ function ensureAudio() {
   if (!AudioContext) return;
   if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === "suspended" && audioCtx.resume) audioCtx.resume();
-  warmPianoSamples();
+  preloadPianoSamples();
 }
 
 function playPianoNote(midi, duration, delay) {
   ensureAudio();
   if (!audioCtx) return;
   if (playSampledPiano(midi, duration, delay)) return;
-  playFallbackPiano(midi, duration, delay);
 }
 
-function warmPianoSamples() {
-  for (var i = 0; i < pianoSamples.length; i += 1) loadPianoSample(pianoSamples[i]);
+function preloadPianoSamples() {
+  if (!audioCtx) return Promise.resolve(false);
+  if (hasLoadedSamples()) {
+    sampleStatus = "ready";
+    return Promise.resolve(true);
+  }
+  if (preloadPromise) return preloadPromise;
+  sampleStatus = "loading";
+  preloadPromise = Promise.allSettled(pianoSamples.map(loadPianoSample)).then(function () {
+    sampleStatus = hasLoadedSamples() ? "ready" : "error";
+    preloadPromise = null;
+    render();
+    return sampleStatus === "ready";
+  });
+  return preloadPromise;
 }
 
 function loadPianoSample(sample) {
-  if (!audioCtx || sampleCache[sample.note] || sampleLoading[sample.note]) return;
-  sampleLoading[sample.note] = true;
-  window.fetch(sample.url)
+  if (!audioCtx || sampleCache[sample.note]) return Promise.resolve(sampleCache[sample.note]);
+  if (sampleLoading[sample.note]) return sampleLoading[sample.note];
+  sampleLoading[sample.note] = window.fetch(sample.url)
     .then(function (response) {
       if (!response.ok) throw new Error("sample");
       return response.arrayBuffer();
@@ -1831,11 +1864,34 @@ function loadPianoSample(sample) {
     })
     .then(function (buffer) {
       sampleCache[sample.note] = buffer;
-      sampleLoading[sample.note] = false;
+      sampleLoading[sample.note] = null;
+      return buffer;
     })
     .catch(function () {
-      sampleLoading[sample.note] = false;
+      sampleLoading[sample.note] = null;
+      return null;
     });
+  return sampleLoading[sample.note];
+}
+
+function hasLoadedSamples() {
+  for (var i = 0; i < pianoSamples.length; i += 1) {
+    if (sampleCache[pianoSamples[i].note]) return true;
+  }
+  return false;
+}
+
+function sampleStatusText() {
+  if (sampleStatus === "loading") return "正在加载真实钢琴音色";
+  if (sampleStatus === "error") return "钢琴采样加载失败，请换网络刷新";
+  if (sampleStatus === "ready") return "真实干声三角钢琴采样";
+  return "真实干声三角钢琴采样";
+}
+
+function playButtonLabel() {
+  if (isPlaying) return "停止练声";
+  if (sampleStatus === "loading") return "加载钢琴音色...";
+  return "开始练声";
 }
 
 function playSampledPiano(midi, duration, delay) {
@@ -1880,40 +1936,6 @@ function nearestLoadedSample(midi) {
     }
   }
   return best;
-}
-
-function playFallbackPiano(midi, duration, delay) {
-  var now = audioCtx.currentTime + (delay || 0);
-  var freq = 440 * Math.pow(2, (midi - 69) / 12);
-  var partials = [
-    { ratio: 1, gain: 0.24, decay: 1 },
-    { ratio: 2.01, gain: 0.08, decay: 0.72 },
-    { ratio: 3.02, gain: 0.035, decay: 0.48 },
-    { ratio: 4.01, gain: 0.018, decay: 0.34 }
-  ];
-  var master = audioCtx.createGain();
-  var filter = audioCtx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.setValueAtTime(5200, now);
-  filter.Q.setValueAtTime(0.55, now);
-  master.gain.setValueAtTime(0.0001, now);
-  master.gain.exponentialRampToValueAtTime(0.95, now + 0.012);
-  master.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.18, duration));
-  master.connect(filter);
-  filter.connect(audioCtx.destination);
-
-  for (var i = 0; i < partials.length; i += 1) {
-    var osc = audioCtx.createOscillator();
-    var gain = audioCtx.createGain();
-    osc.type = i === 0 ? "triangle" : "sine";
-    osc.frequency.setValueAtTime(freq * partials[i].ratio, now);
-    gain.gain.setValueAtTime(partials[i].gain, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration * partials[i].decay);
-    osc.connect(gain);
-    gain.connect(master);
-    osc.start(now);
-    osc.stop(now + duration + 0.05);
-  }
 }
 
 function playChord(midis, duration) {
