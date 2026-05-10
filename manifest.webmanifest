@@ -1,0 +1,10 @@
+{
+  "name": "声乐宝",
+  "short_name": "声乐宝",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "orientation": "portrait-primary",
+  "icons": []
+}
