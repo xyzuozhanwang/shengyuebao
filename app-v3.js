@@ -20,16 +20,21 @@ var defaults = [
   { id: "scale-8", name: "音阶8", events: events(["5", "3", "1", "0", "1", "2", "3", "2", "1"], 0.5) }
 ];
 var pianoSamples = [
-  { note: "A2", midi: 45, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A2.mp3" },
-  { note: "C3", midi: 48, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C3.mp3" },
-  { note: "D#3", midi: 51, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Ds3.mp3" },
-  { note: "F#3", midi: 54, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Fs3.mp3" },
-  { note: "A3", midi: 57, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A3.mp3" },
-  { note: "C4", midi: 60, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C4.mp3" },
-  { note: "D#4", midi: 63, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Ds4.mp3" },
-  { note: "F#4", midi: 66, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Fs4.mp3" },
-  { note: "A4", midi: 69, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A4.mp3" },
-  { note: "C5", midi: 72, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C5.mp3" }
+  { note: "A2", midi: 45, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/A2.mp3" },
+  { note: "A#2", midi: 46, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/Bb2.mp3" },
+  { note: "C3", midi: 48, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/C3.mp3" },
+  { note: "D3", midi: 50, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/D3.mp3" },
+  { note: "D#3", midi: 51, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/Eb3.mp3" },
+  { note: "F3", midi: 53, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/F3.mp3" },
+  { note: "F#3", midi: 54, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/Gb3.mp3" },
+  { note: "A3", midi: 57, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/A3.mp3" },
+  { note: "C4", midi: 60, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/C4.mp3" },
+  { note: "D4", midi: 62, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/D4.mp3" },
+  { note: "D#4", midi: 63, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/Eb4.mp3" },
+  { note: "F4", midi: 65, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/F4.mp3" },
+  { note: "F#4", midi: 66, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/Gb4.mp3" },
+  { note: "A4", midi: 69, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/A4.mp3" },
+  { note: "C5", midi: 72, url: "https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/C5.mp3" }
 ];
 var saved = loadState();
 var scales = saved.scales;
@@ -40,6 +45,7 @@ var bpm = saved.bpm || 95;
 var startNote = saved.startNote || "E3";
 var direction = saved.direction || "up";
 var selectedDuration = saved.selectedDuration || 0.5;
+var inputOctaveShift = 0;
 var isPlaying = false;
 var activeNote = "";
 var activeChord = [];
@@ -86,8 +92,21 @@ function score(list) {
     list.map(function (e, i) {
       e = norm(e);
       var cls = i === activeEventIndex && playStage === "melody" ? " active-note" : "";
-      return '<span class="note-token' + cls + '">' + (e.rest ? "－" : e.label) + '</span>' + ((i + 1) % 2 === 0 && i !== list.length - 1 ? '<span class="bar">|</span>' : "");
+      return '<span class="note-token' + cls + '">' + noteView(e) + '</span>' + ((i + 1) % 2 === 0 && i !== list.length - 1 ? '<span class="bar">|</span>' : "");
     }).join("") + '<span class="bar">||</span></span>';
+}
+
+function noteView(e) {
+  if (e.rest) return "－";
+  var shift = e.offset - baseOffset(e.label);
+  var dot = shift >= 12 ? '<span class="tone-dot top"></span>' : shift <= -12 ? '<span class="tone-dot bottom"></span>' : "";
+  return '<span class="tone-note">' + (shift >= 12 ? dot : "") + '<span>' + e.label + '</span>' + (shift <= -12 ? dot : "") + '</span>';
+}
+
+function padNoteView(label) {
+  if (label === "0") return label;
+  var dot = inputOctaveShift > 0 ? '<span class="tone-dot top"></span>' : inputOctaveShift < 0 ? '<span class="tone-dot bottom"></span>' : "";
+  return '<span class="tone-note">' + (inputOctaveShift > 0 ? dot : "") + '<span>' + label + '</span>' + (inputOctaveShift < 0 ? dot : "") + '</span>';
 }
 
 function piano() {
@@ -101,7 +120,7 @@ function piano() {
     keys += '<button class="white-key ' + (isKeyActive(note) ? "active" : "") + '" data-note="' + note + '">' + note + '</button>';
     left += 82;
   });
-  return '<section class="piano-dock"><div class="piano-track-wrap"><div class="mini-piano">' + mini + '</div><button class="loop-button" data-action="cycle-direction">' + dirLabel() + '</button></div><div class="keyboard" data-keyboard>' + keys + '</div></section>';
+  return '<section class="piano-dock"><div class="piano-track-wrap"><div class="mini-piano">' + mini + '<span class="track-window"></span></div><button class="loop-button" data-action="cycle-direction">' + dirLabel() + '</button></div><div class="keyboard" data-keyboard>' + keys + '</div></section>';
 }
 
 function chips() {
@@ -116,11 +135,11 @@ function pad() {
     if (label === "1/2") return durationKey(0.5, label);
     if (label === "1/4") return durationKey(1, label);
     if (label === "1/8") return durationKey(0.25, label);
-    if (label === "八度+1") return '<button class="pad-key" data-action="octave-up">' + label + '</button>';
-    if (label === "八度-1") return '<button class="pad-key" data-action="octave-down">' + label + '</button>';
+    if (label === "八度+1") return '<button class="pad-key ' + (inputOctaveShift > 0 ? "active" : "") + '" data-action="octave-up">' + label + '</button>';
+    if (label === "八度-1") return '<button class="pad-key ' + (inputOctaveShift < 0 ? "active" : "") + '" data-action="octave-down">' + label + '</button>';
     if (label === "重置") return '<button class="pad-key" data-action="reset-draft">' + label + '</button>';
     if (label === "⌫") return '<button class="pad-key delete-key" data-action="delete-last">' + label + '</button>';
-    return '<button class="pad-key note-key" data-add-note="' + label + '">' + label + '<span></span></button>';
+    return '<button class="pad-key note-key" data-add-note="' + label + '">' + padNoteView(label) + '<span></span></button>';
   }).join("");
 }
 
@@ -136,7 +155,7 @@ function bind() {
   bindAll("[data-track]", "click", track);
   bindAll("[data-note]", "click", key);
   var kb = document.querySelector("[data-keyboard]");
-  if (kb) kb.addEventListener("scroll", function () { scrollRestore = kb.scrollLeft; });
+  if (kb) kb.addEventListener("scroll", function () { scrollRestore = kb.scrollLeft; updateTrackWindow(); });
 }
 
 function bindAll(selector, eventName, handler) {
@@ -157,8 +176,8 @@ function action(e) {
   if (a === "reset-draft") editorDraft = cloneEvents(scale().events);
   if (a === "add-scale") addScale();
   if (a === "delete-scale") deleteScale();
-  if (a === "octave-up") shiftDraft(12);
-  if (a === "octave-down") shiftDraft(-12);
+  if (a === "octave-up") inputOctaveShift = inputOctaveShift === 12 ? 0 : 12;
+  if (a === "octave-down") inputOctaveShift = inputOctaveShift === -12 ? 0 : -12;
   saveState();
   render();
 }
@@ -175,7 +194,7 @@ function selectScale(e) {
 function addNote(e) {
   var note = solfegeByLabel(e.currentTarget.getAttribute("data-add-note"));
   if (!note || beats(editorDraft) + selectedDuration > 8) return;
-  editorDraft.push({ label: note.rest ? "0" : note.label, offset: note.offset, beats: selectedDuration, rest: !!note.rest });
+  editorDraft.push({ label: note.rest ? "0" : note.label, offset: note.offset + (note.rest ? 0 : inputOctaveShift), beats: selectedDuration, rest: !!note.rest });
   render();
 }
 
@@ -187,6 +206,11 @@ function duration(e) {
 
 function key(e) {
   e.preventDefault();
+  if (isPlaying) {
+    stop();
+    render();
+    return;
+  }
   startNote = e.currentTarget.getAttribute("data-note");
   stop();
   saveState();
@@ -199,6 +223,7 @@ function track(e) {
   var max = Math.max(0, kb.scrollWidth - kb.clientWidth);
   kb.scrollLeft = max * (Number(e.currentTarget.getAttribute("data-track")) / 63);
   scrollRestore = kb.scrollLeft;
+  updateTrackWindow();
 }
 
 function addScale() {
@@ -229,10 +254,6 @@ function saveScale() {
   saveState();
 }
 
-function shiftDraft(offset) {
-  editorDraft.forEach(function (e) { if (!e.rest) e.offset += offset; });
-}
-
 function startFrom(note) {
   if (!scale().events.length || sampleStatus === "loading") return;
   ensureAudio();
@@ -257,7 +278,7 @@ function scheduleRound(base) {
   chordAt(chord, 1.15, cursor);
   cursor += 1150;
   stage("breath", -1, [], cursor);
-  cursor += 1000;
+  cursor += 2000;
   list.forEach(function (ev, i) {
     ev = norm(ev);
     timers.push(setTimeout(function () {
@@ -279,7 +300,7 @@ function scheduleRound(base) {
   chordAt(chord, 1, cursor);
   cursor += 1000;
   stage("breath", -1, [], cursor);
-  cursor += 1000;
+  cursor += 2000;
   timers.push(setTimeout(function () {
     var next = nextBase(base);
     if (next === null) { stop(); render(); return; }
@@ -509,6 +530,24 @@ function restoreScroll() {
     var keyNode = document.querySelector('[data-note="' + startNote + '"]');
     if (keyNode && keyNode.scrollIntoView) keyNode.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
   }
+  updateTrackWindow();
+}
+
+function updateTrackWindow() {
+  var kb = document.querySelector("[data-keyboard]");
+  var win = document.querySelector(".track-window");
+  if (!kb || !win) return;
+  var max = Math.max(1, kb.scrollWidth - kb.clientWidth);
+  var percent = kb.scrollLeft / max;
+  var width = Math.max(38, Math.min(98, (kb.clientWidth / kb.scrollWidth) * 100));
+  var left = Math.max(0, Math.min(100 - width, percent * (100 - width)));
+  win.style.width = width + "%";
+  win.style.left = left + "%";
+}
+
+function baseOffset(label) {
+  var note = solfegeByLabel(label);
+  return note ? note.offset : 0;
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render, false);
