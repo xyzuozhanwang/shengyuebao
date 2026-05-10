@@ -41,6 +41,29 @@
   padding: 3px 4px;
 }
 
+.tone-note {
+  display: inline-grid;
+  grid-template-rows: 7px auto 7px;
+  justify-items: center;
+  align-items: center;
+  line-height: 1;
+}
+
+.tone-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.tone-dot.top {
+  grid-row: 1;
+}
+
+.tone-dot.bottom {
+  grid-row: 3;
+}
+
 .note-token.active-note {
   background: var(--accent);
   color: #4f3705;
@@ -79,6 +102,18 @@
   border: 0;
   border-radius: 0;
   padding: 0;
+}
+
+.track-window {
+  position: absolute;
+  left: 35%;
+  bottom: 5px;
+  width: 64px;
+  height: 36px;
+  border: 4px solid var(--accent);
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(82, 55, 3, 0.2);
 }
 
 .loop-button {
@@ -230,6 +265,11 @@
   background: #b7bbc3;
 }
 
+.pad-key.active {
+  background: var(--accent);
+  color: #4f3705;
+}
+
 .note-key {
   display: grid;
   align-content: center;
@@ -237,11 +277,24 @@
   font-size: 32px;
 }
 
-.note-key span {
+.note-key > span:last-child {
   width: 32px;
   height: 2px;
   margin: 0 auto;
   background: #3f4247;
+}
+
+.note-key .tone-note span {
+  width: auto;
+  height: auto;
+  margin: 0;
+  background: transparent;
+}
+
+.note-key .tone-note .tone-dot {
+  width: 5px;
+  height: 5px;
+  background: currentColor;
 }
 
 .delete-key {
