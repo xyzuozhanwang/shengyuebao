@@ -1216,7 +1216,23 @@ var playStage = "";
 var melodySheetOpen = false;
 var editorOpen = false;
 var audioCtx = null;
+var sampleCache = {};
+var sampleLoading = {};
 var playTimers = [];
+var pianoSamples = [
+  { note: "A2", midi: 45, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A2.mp3" },
+  { note: "C3", midi: 48, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C3.mp3" },
+  { note: "D#3", midi: 51, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Ds3.mp3" },
+  { note: "F#3", midi: 54, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Fs3.mp3" },
+  { note: "A3", midi: 57, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A3.mp3" },
+  { note: "C4", midi: 60, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C4.mp3" },
+  { note: "D#4", midi: 63, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Ds4.mp3" },
+  { note: "F#4", midi: 66, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Fs4.mp3" },
+  { note: "A4", midi: 69, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/A4.mp3" },
+  { note: "C5", midi: 72, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/C5.mp3" },
+  { note: "D#5", midi: 75, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Ds5.mp3" },
+  { note: "F#5", midi: 78, url: "https://cdn.jsdelivr.net/gh/nbrosowsky/tonejs-instruments@master/samples/piano/Fs5.mp3" }
+];
 
 function render() {
   if (!app) return;
@@ -1253,11 +1269,11 @@ function practiceTemplate() {
       '</section>' +
       '<section class="panel compact-panel">' +
         '<div class="section-head"><h2 class="voice-title">练声曲编辑</h2><button class="text-action" data-action="open-editor">编辑旋律</button></div>' +
-        '<div class="preview-row"><span>Kawai SK-EX 干声钢琴 · 预备和弦自动加入</span><strong>' + summary + '</strong></div>' +
+        '<div class="preview-row"><span>真实干声三角钢琴采样 · 预备和弦自动加入</span><strong>' + summary + '</strong></div>' +
       '</section>' +
       '<section class="panel settings-panel">' +
         '<div class="segmented" aria-label="拍号">' + meterButtonsTemplate() + '</div>' +
-        '<div class="rest-note">每轮自动加入：前置1小节I级大三和弦，结束2拍I级和弦，之后2小节休止换气。</div>' +
+        '<div class="rest-note">每轮自动加入：前置1小节I级大三和弦，结束2拍I级和弦，之后2小节休止换气。当前为开放钢琴采样；若需严格Kawai SK-EX，可替换授权采样。</div>' +
       '</section>' +
       '<div class="play-controls">' +
         '<button class="primary-action" data-action="toggle-play">' + (isPlaying ? "停止练声" : "开始练声") + '</button>' +
@@ -1788,11 +1804,85 @@ function ensureAudio() {
   if (!AudioContext) return;
   if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === "suspended" && audioCtx.resume) audioCtx.resume();
+  warmPianoSamples();
 }
 
 function playPianoNote(midi, duration, delay) {
   ensureAudio();
   if (!audioCtx) return;
+  if (playSampledPiano(midi, duration, delay)) return;
+  playFallbackPiano(midi, duration, delay);
+}
+
+function warmPianoSamples() {
+  for (var i = 0; i < pianoSamples.length; i += 1) loadPianoSample(pianoSamples[i]);
+}
+
+function loadPianoSample(sample) {
+  if (!audioCtx || sampleCache[sample.note] || sampleLoading[sample.note]) return;
+  sampleLoading[sample.note] = true;
+  window.fetch(sample.url)
+    .then(function (response) {
+      if (!response.ok) throw new Error("sample");
+      return response.arrayBuffer();
+    })
+    .then(function (arrayBuffer) {
+      return audioCtx.decodeAudioData(arrayBuffer);
+    })
+    .then(function (buffer) {
+      sampleCache[sample.note] = buffer;
+      sampleLoading[sample.note] = false;
+    })
+    .catch(function () {
+      sampleLoading[sample.note] = false;
+    });
+}
+
+function playSampledPiano(midi, duration, delay) {
+  var sample = nearestLoadedSample(midi);
+  if (!sample) return false;
+  var buffer = sampleCache[sample.note];
+  if (!buffer) return false;
+  var now = audioCtx.currentTime + (delay || 0);
+  var source = audioCtx.createBufferSource();
+  var gain = audioCtx.createGain();
+  var filter = audioCtx.createBiquadFilter();
+  var release = Math.min(0.18, Math.max(0.06, duration * 0.22));
+
+  source.buffer = buffer;
+  source.playbackRate.setValueAtTime(Math.pow(2, (midi - sample.midi) / 12), now);
+  filter.type = "lowpass";
+  filter.frequency.setValueAtTime(7600, now);
+  filter.Q.setValueAtTime(0.2, now);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(0.86, now + 0.012);
+  gain.gain.setValueAtTime(0.86, now + Math.max(0.03, duration - release));
+  gain.gain.linearRampToValueAtTime(0.0001, now + duration + release);
+
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(audioCtx.destination);
+  source.start(now);
+  source.stop(now + duration + release + 0.05);
+  return true;
+}
+
+function nearestLoadedSample(midi) {
+  var best = null;
+  var bestDistance = Infinity;
+  for (var i = 0; i < pianoSamples.length; i += 1) {
+    var item = pianoSamples[i];
+    if (!sampleCache[item.note]) continue;
+    var distance = Math.abs(item.midi - midi);
+    if (distance < bestDistance) {
+      best = item;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+function playFallbackPiano(midi, duration, delay) {
   var now = audioCtx.currentTime + (delay || 0);
   var freq = 440 * Math.pow(2, (midi - 69) / 12);
   var partials = [
