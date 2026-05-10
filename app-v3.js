@@ -73,7 +73,7 @@ function practicePage() {
   return '<section class="phone-page practice-page">' +
     '<header class="topbar"><button class="icon-button" aria-label="返回"><span class="back-icon"></span></button><h1 class="title">音阶练习</h1><span></span></header>' +
     '<section class="panel melody-panel simple-panel"><div class="scale-toolbar">' +
-    '<button class="scale-select" data-action="open-editor">' + scale().name + '<span class="chevron-dot"></span></button>' +
+    '<button class="scale-select" data-action="open-editor"><span class="scale-name">' + scale().name + '</span><span class="edit-badge" aria-hidden="true">✎</span></button>' +
     '<div class="tempo"><span>速度</span><button class="round-control" data-action="tempo-down">-</button><span>' + bpm + 'BPM</span><button class="round-control" data-action="tempo-up">+</button></div>' +
     '</div><div class="score-line">' + score(scale().events) + '</div><div class="sound-status">' + statusText() + '</div></section>' +
     piano() + '</section>';
@@ -88,6 +88,7 @@ function editorPage() {
 }
 
 function score(list) {
+  if (!list.length) return '<span class="tonic-stack"><span>5</span><span>3</span><span>1</span></span><span class="notation empty-notation"><span class="bar">|</span><span class="empty-note">点击下方音符输入</span><span class="bar">||</span></span>';
   return '<span class="tonic-stack"><span>5</span><span>3</span><span>1</span></span><span class="notation"><span class="bar">|</span>' +
     list.map(function (e, i) {
       e = norm(e);
@@ -120,7 +121,7 @@ function piano() {
     keys += '<button class="white-key ' + (isKeyActive(note) ? "active" : "") + '" data-note="' + note + '">' + note + '</button>';
     left += 82;
   });
-  return '<section class="piano-dock"><div class="piano-track-wrap"><div class="mini-piano">' + mini + '<span class="track-window"></span></div><button class="loop-button" data-action="cycle-direction">' + dirLabel() + '</button></div><div class="keyboard" data-keyboard>' + keys + '</div></section>';
+  return '<section class="piano-dock"><div class="piano-action-row"><button class="loop-button" data-action="cycle-direction">' + dirLabel() + '</button></div><div class="piano-track-wrap"><div class="mini-piano">' + mini + '<span class="track-window"></span></div></div><div class="keyboard" data-keyboard>' + keys + '</div></section>';
 }
 
 function chips() {
@@ -227,7 +228,7 @@ function track(e) {
 }
 
 function addScale() {
-  var s = { id: "scale-" + Date.now(), name: "音阶" + (scales.length + 1), events: events(["1", "2", "3", "2", "1"], 0.5) };
+  var s = { id: "scale-" + Date.now(), name: "音阶" + (scales.length + 1), events: [] };
   scales.push(s);
   selectedScaleId = s.id;
   editingScaleId = s.id;
@@ -244,7 +245,6 @@ function deleteScale() {
 }
 
 function saveScale() {
-  if (!editorDraft.length) return;
   var i = scaleIndex(editingScaleId);
   if (i < 0) i = scaleIndex(selectedScaleId);
   scales[i].events = cloneEvents(editorDraft);
@@ -278,7 +278,7 @@ function scheduleRound(base) {
   chordAt(chord, 1.15, cursor);
   cursor += 1150;
   stage("breath", -1, [], cursor);
-  cursor += 2000;
+  cursor += 1000;
   list.forEach(function (ev, i) {
     ev = norm(ev);
     timers.push(setTimeout(function () {
@@ -300,7 +300,7 @@ function scheduleRound(base) {
   chordAt(chord, 1, cursor);
   cursor += 1000;
   stage("breath", -1, [], cursor);
-  cursor += 2000;
+  cursor += 1000;
   timers.push(setTimeout(function () {
     var next = nextBase(base);
     if (next === null) { stop(); render(); return; }
