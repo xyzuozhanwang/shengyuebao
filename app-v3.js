@@ -4,7 +4,7 @@ var whiteNotes = ["A2", "B2", "C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D
 var blackAfter = { A: true, C: true, D: true, F: true, G: true };
 var storageKey = "shengyuebao-v3";
 var oldStorageKey = "shengyuebao-v2";
-var directions = [{ id: "up", label: "自动上行" }, { id: "down", label: "自动下行" }, { id: "repeat", label: "重复" }];
+var directions = [{ id: "up", label: "自动上行 ↑" }, { id: "down", label: "自动下行 ↓" }, { id: "repeat", label: "重复 ↻" }];
 var solfege = [
   { label: "1", offset: 0 }, { label: "2", offset: 2 }, { label: "3", offset: 4 }, { label: "4", offset: 5 },
   { label: "5", offset: 7 }, { label: "6", offset: 9 }, { label: "7", offset: 11 }, { label: "0", offset: 0, rest: true }
@@ -72,18 +72,18 @@ function render() {
 function practicePage() {
   return '<section class="phone-page practice-page">' +
     '<header class="topbar"><button class="icon-button" aria-label="返回"><span class="back-icon"></span></button><h1 class="title">音阶练习</h1><span></span></header>' +
-    '<section class="panel melody-panel simple-panel"><div class="scale-toolbar">' +
+    '<section class="panel melody-panel simple-panel current-card"><div class="scale-toolbar">' +
     '<button class="scale-select" data-action="open-editor"><span class="scale-name">' + scale().name + '</span><span class="edit-badge" aria-hidden="true">✎</span></button>' +
-    '<div class="tempo"><span>速度</span><button class="round-control" data-action="tempo-down">-</button><span>' + bpm + 'BPM</span><button class="round-control" data-action="tempo-up">+</button></div>' +
-    '</div><div class="score-line">' + score(scale().events) + '</div><div class="sound-status">' + statusText() + '</div></section>' +
+    '<div class="tempo"><span class="tempo-label">速度</span><button class="round-control" data-action="tempo-down">-</button><span class="bpm-value">' + bpm + 'BPM</span><button class="round-control" data-action="tempo-up">+</button></div>' +
+    '</div><div class="score-frame"><div class="score-line">' + score(scale().events) + '</div></div><div class="sound-status">' + statusText() + '</div></section>' +
     piano() + '</section>';
 }
 
 function editorPage() {
   return '<section class="phone-page practice-page editor-page">' +
     '<header class="topbar editor-topbar"><button class="icon-button" data-action="close-editor"><span class="back-icon"></span></button><h1 class="title">编辑音阶</h1><button class="save-link" data-action="save-scale">保存</button></header>' +
-    '<section class="panel editor-preview"><h2>2/4拍</h2><div class="score-line editor-score">' + score(editorDraft) + '</div></section>' +
-    '<section class="panel scale-editor-panel"><div class="section-head"><h2 class="voice-title">音阶</h2><div class="editor-tools"><button class="tool-icon" data-action="delete-scale">⌫</button><button class="tool-icon" data-action="clear-draft">✎</button></div></div><div class="scale-chip-grid">' + chips() + '</div></section>' +
+    '<section class="panel editor-preview"><div class="editor-meter"><h2>2/4拍</h2><span>' + beats(editorDraft) + '/8</span></div><div class="score-frame editor-score-frame"><div class="score-line editor-score">' + score(editorDraft) + '</div></div></section>' +
+    '<section class="panel scale-editor-panel"><div class="section-head"><h2 class="voice-title">音阶组</h2><div class="editor-tools"><button class="tool-icon" data-action="delete-scale">⌫</button><button class="tool-icon" data-action="clear-draft">清空</button></div></div><div class="scale-chip-grid">' + chips() + '</div></section>' +
     '<section class="edit-pad"><div class="pad-grid">' + pad() + '</div></section></section>';
 }
 
@@ -433,7 +433,7 @@ function isKeyActive(note) {
 function statusText() {
   if (sampleStatus === "loading") return "正在加载钢琴音色";
   if (sampleStatus === "error") return "钢琴采样加载失败，请换网络刷新";
-  return isPlaying ? "点击琴键可停止并切换新调" : "点击任一琴键开始";
+  return isPlaying ? "再次点击琴键停止" : "点击任一琴键开始";
 }
 
 function loadState() {
